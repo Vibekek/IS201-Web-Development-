@@ -1,0 +1,134 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- Minigame using AI -->
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+
+    <title> Guess the Number </title>
+
+    <style>
+        :root { --bg:#222; --fg:#fff; --panel:#2f2f2f; --low:#ff6b6b; --mid:#ffd166; --hi:#06d6a0; }
+        * { box-sizing:border-box }
+        body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--fg); font:600 16px/1.4 system-ui,Segoe UI,Roboto,sans-serif }
+        .card { width:min(520px,92vw); background:var(--panel); border-radius:12px; padding:16px; text-align:center; }
+        h1 { margin:0 0 8px; font-size:20px }
+        .row { display:flex; gap:8px; justify-content:center; margin:12px 0 }
+        input[type="number"],button { padding:10px 12px; border-radius:10px; border:1px solid #555; background:#1f1f1f; color:var(--fg); font-weight:700 }
+        button { cursor:pointer } button:active{transform:translateY(1px)}
+        .bar { position:relative; height:12px; background:#1a1a1a; border-radius:999px; margin:10px 0 }
+        .range { position:absolute; height:100%; border-radius:999px; background:linear-gradient(90deg,var(--low),var(--mid),var(--hi)) }
+        .msg { min-height:28px; margin-top:8px; font-weight:800 }
+        .hot { color:var(--low) } .warm{color:var(--mid)} .cold{color:#7da2ff}
+        .hud { font-size:14px; opacity:.9; display:flex; gap:12px; justify-content:center; margin-top:8px }
+    </style>
+</head>
+
+
+
+<body>
+    <div class="card">
+        <h1> 🎯 Guess the Number — Hot/Cold Hint </h1>
+        <p> I'm thinking of a number between <b>1</b> and <b>100</b>. Use guesses to narrow the range.</p>
+
+        <div class="row">
+            <input id="guess" type="number" min="1" max="100" placeholder="1–100">
+            <button id="go"> Guess </button>
+            <button id="hint"> Hint </button>
+            <button id="reset" title="New round">↻</button>
+        </div>
+
+        <div class="bar" aria-label="possible range"><div id="range" class="range" style="left:0%;width:100%"></div></div>
+        <div id="msg" class="msg"></div>
+        <div class="hud">
+            <span>Attempts: <b id="tries">0</b></span>
+            <span>Best: <b id="best">—</b></span>
+            <span>Hint costs +1 attempt</span>
+        </div>
+    </div>
+
+    <script>
+        (function(){
+        // Safe storage wrapper (avoids errors in private mode)
+        const store = (() => {
+            try { const k='__t'; localStorage.setItem(k,'1'); localStorage.removeItem(k); return localStorage; }
+            catch { return { getItem:()=>null, setItem:()=>{} }; }
+        })();
+
+        // Elements
+        const input = document.getElementById('guess'), msg = document.getElementById('msg');
+        const triesEl = document.getElementById('tries'), bestEl = document.getElementById('best');
+        const rangeEl = document.getElementById('range');
+        const btnGo = document.getElementById('go'), btnHint = document.getElementById('hint'), btnReset = document.getElementById('reset');
+
+        // State
+        let secret, attempts, low, high, over;
+
+        function reset(){
+            secret = Math.floor(Math.random()*100)+1;
+            attempts = 0; low = 1; high = 100; over = false;
+            triesEl.textContent = attempts; msg.textContent = ''; msg.className = 'msg';
+            input.value = ''; input.focus();
+            updateBar();
+            bestEl.textContent = store.getItem('bestGuess') || '—';
+        }
+
+        function updateBar(){
+            const L = ((low-1)/99)*100, W = ((high-low)/99)*100;
+            rangeEl.style.left = L+'%';
+            rangeEl.style.width = Math.max(2,W)+'%';
+        }
+
+        function heat(d){ return d<=3?['🔥 Super hot!','hot'] : d<=10?['♨️ Warm','warm'] : ['❄️ Cold','cold']; }
+
+        function guess(){
+            if (over) return;
+            const g = +input.value;
+            if (!g || g<1 || g>100) { msg.textContent='Enter a number 1–100.'; msg.className='msg'; input.focus(); return; }
+            attempts++; triesEl.textContent = attempts;
+
+            if (g < secret && g>=low) low = g+1;
+            if (g > secret && g<=high) high = g-1;
+            updateBar();
+
+            if (g === secret){
+            over = true;
+            msg.innerHTML = `🎉 Correct! <b>${secret}</b> — Attempts: <b>${attempts}</b>`;
+            const prev = +store.getItem('bestGuess') || Infinity;
+            if (attempts < prev) store.setItem('bestGuess', attempts);
+            bestEl.textContent = store.getItem('bestGuess') || attempts;
+            } else {
+            const [txt, cls] = heat(Math.abs(g-secret));
+            msg.innerHTML = `${txt} — ${g<secret ? 'Too low ⬆️' : 'Too high ⬇️'}`;
+            msg.className = 'msg '+cls;
+            }
+            input.select();
+        }
+
+        function hint(){
+            if (over) return;
+            attempts++; triesEl.textContent = attempts;
+            const facts = [
+            secret%2===0 ? 'Even' : 'Odd',
+            secret%3===0 ? 'Divisible by 3' : null,
+            secret%5===0 ? 'Divisible by 5' : null,
+            'Digit sum = ' + String(secret).split('').reduce((a,b)=>a+ +b,0)
+            ].filter(Boolean);
+            msg.innerHTML = `Hint: <b>${facts.join(', ')}</b>`;
+            msg.className = 'msg';
+            input.focus();
+        }
+
+        // Wire up
+        btnGo.onclick = guess; btnHint.onclick = hint; btnReset.onclick = reset;
+        input.addEventListener('keydown', e => { if (e.key==='Enter') guess(); });
+
+        // Start
+        reset();
+        })();
+    </script>
+</body>
+</html>
